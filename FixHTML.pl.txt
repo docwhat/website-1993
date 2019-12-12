@@ -1,0 +1,48 @@
+#!/usr/local/bin/perl
+# FixHTML.pl -- a program to re-name files (*.htm->*.html) and
+#               to make all files lower case.  I use this
+#               as a converter from DOS to my UNIX WebServer.
+#               Note: there are usually ^M's at then end of
+#               each line in DOS.html files.  They are harmless.
+# 
+#
+# This program is part of Christian Holtje's
+# Magic HTML Tools.
+#
+# Copyright 1995 Christian Holtje <docwhat@uiuc.edu>
+# http://www.uiuc.edu/ph/www/docwhat/
+#
+# Disclaimer:  The author doesn't know if this will work or
+# distroy your life.  Just because it works for me, doesn't
+# it will work for you. If something does go wrong, don't blame
+# me!
+#
+
+@LinkMe = ('bin/FixHTML.pl','bin/mktoc.pl');
+
+while( $file = <~/public_html/*> ){
+  push(@allfiles, $file);
+}
+
+foreach $file (@allfiles) {
+  $newfile = $file;
+  $newfile =~ tr/[A-Z]/[a-z]/;
+  if( $newfile =~ /.+\.htm$/ ) {
+    $newfile .= "l";
+  }
+  $newfile = "" if ($file =~ /.*\.pl/i);
+  if( $newfile && $newfile ne $file ) {
+     rename($file,$newfile) || die "Unable to rename $OLD to $NEW: $!";
+     print "$file -> $newfile\n";
+  }
+}
+
+symlink("home.html","index.html");
+foreach $oldfile ( @LinkMe ){
+  $newfile = $oldfile;
+  $newfile =~ s/.*\/(.*)$/$1/;
+  print "linking $oldfile -> $newfile\n";
+  link("$ENV{'HOME'}/$oldfile","$ENV{'HOME'}/public_html/$newfile") ||
+     print "  Failed: $!\n";
+}
+

@@ -1,0 +1,181 @@
+#!/usr/local/bin/perl
+# itoc.pl -- A perl script to generate a Table of
+#            Contents internal to an HTML doc.
+#            Any <A NAME="xxx"> anchors will
+#            be added with the text that's between
+#            the anchors.
+#
+#            In order to make your ToC have different
+#            levels, use the ID=n attrib., in the anchor
+#            to set the level. 1=default, 2=next indent...etc
+#            ID=0 is a special case. It will keep the level of
+#            the previous item.  Therefor, if you don't use the
+#            ID tags at all, you will have a list of all
+#            level one.
+#
+# This program is part of Christian Holtje's
+# Magic HTML Tools.
+#
+# Copyright 1995 Christian Holtje <docwhat@uiuc.edu>
+# http://www.uiuc.edu/ph/www/docwhat/
+#
+# Disclaimer:  The author doesn't know if this will work or
+# distroy your life.  Just because it works for me, doesn't
+# it will work for you. If something does go wrong, don't blame
+# me!
+#
+
+#Debug Line
+#@ARGV = ("orig\\test.htm","test.htm");
+
+# Do we have the right Arguments?
+die "Usage: $0 <Source> <Destination>\n" if ( @ARGV < 2 );
+$Source = $ARGV[0];
+$Dest = $ARGV[1];
+die "Source and Destination cannot and should not be the same file\n"
+  if ( $Source eq $Dest );
+
+# Are we in DOS or Unix?
+if ($ENV{"PATH"} =~ /[A-Z]:\\.*/) {$OS = "DOS";}
+else {$OS = "UNIX";}
+
+
+$ToCTag = "<!--\\sInsert\\sToC\\sHere\\s-->";
+$ToCStart = "<!-- ToC Starts -->";
+$ToCEnd = "<!-- ToC Ends -->";
+
+
+&PassOne($Source);
+$ToC = &BuildToC(1);
+&Temp2Dest( $ToC, &Copy2Temp);
+
+
+sub Temp2Dest {
+  local($ToC, @Temp) = @_;
+  local($temp);
+  open(DFILE,">$Dest");
+while( $temp = shift(@Temp) ) {
+    print DFILE $temp;
+    if ( $temp =~ /$ToCTag/i ) {
+      print DFILE "$ToCStart\n";
+      print DFILE "<!-- Anything between here and the ToC End marker is generated -->\n";
+      print DFILE $ToC;
+      print DFILE "$ToCEnd\n";
+    }
+  }
+  close(DFILE);
+}
+
+
+sub Copy2Temp {
+  local(@Temp,$okay,$Tag);
+  open(SFILE,"$Source");
+  $Tag = $ToCTag;
+  while( <SFILE> ){
+    if ( /$Tag/i ) {
+      if( $Tag eq $ToCTag ) {
+        $Tag = $ToCStart;
+        push(@Temp, $_);
+      } elsif ( $Tag eq $ToCStart ) {
+        while( <SFILE> ) {
+          last if ( /$ToCEnd/i );
+        }
+      }
+    } else {
+      push(@Temp, $_);
+    }
+  }
+  close(SFILE);
+  @Temp;
+}
+
+
+sub PassOne {
+  local($Source) = @_;
+  local($String,$id,$name,$attrib,$val);
+  open(SFILE, "$Source") || die "Unable to open Source ($Source):\n$!\n";
+  while( <SFILE> ){
+    chop;
+    $String .= "$_ ";
+  }
+
+  # Find the first part.
+  while( $String =~ ?<A?i ) {
+    $id = $name = 0;
+    $String = $'; reset;
+    ($attrib,$val) = &FindAttrib( "ID|NAME" );
+    unless ($attrib eq ">") {
+      if($attrib =~ "id") {
+        $id=$val; $key = "NAME";
+      } else {
+        $name=$val; $key = "ID";
+      }
+
+      ($attrib,$val) = &FindAttrib( $key );
+      unless ($attrib eq ">") {
+        if($attrib eq "id") { $id=$val; } else { $name=$val; }
+        $String =~ ?>?; $String = $'; reset; # Get rid of trailing >
+      }
+
+      $String =~ ?</A>?i;
+      push(@text, $`);
+      $String = $'; reset;
+      push(@id,$id); push(@name, $name);
+    }
+  }
+  print "Used  Lvl\tLink\t\tName\n";
+  foreach $val (0..$#id) {
+    print "yes   " if ($name[$val]);
+    print "no    " unless ($name[$val]) ;
+    print "$id[$val]\t\t#$name[$val]\t\t$text[$val]\n";
+  }
+}
+
+sub BuildToC {
+  local($level) = @_;
+  local($quit) = 0;
+  local($return);
+  $return = " " x ($level-1);
+  $return .= "<UL>\n";
+  while( $#id >= 0 && !$quit ){
+    unless( $name[0] ) {
+      shift(@id); shift(@text); shift(@name);
+    } else {
+      $id[0] = $level if($id[0] == 0);
+      unless ($id[0] < $level) {
+        if($id[0] > $level) { #Our level is too high.
+          $return .= &BuildToC($level+1);
+        } else { # We're at the right level.
+          $return .= " " x $level;
+          $return .= "<LI>".&Link("#".shift(@name),shift(@text))."\n";
+          shift(@id);
+        }
+      } else { # We are too low
+        $quit = 1;
+      }
+    } # if our name is invalid.
+  } # while
+  $return .= " " x ($level-1);
+  $return .= "</UL>\n";
+  $return;
+}
+
+sub FindAttrib {
+  local($keys) = @_;
+  local($attrib,$val);
+  $String =~ ?($keys|>)?i;
+  ($attrib = $1) =~ tr/[A-Z]/[a-z]/;
+  $String = $'; reset;
+  unless ($attrib eq ">") {
+    $String =~ ?="{0,1}([\w]*)"{0,1}?i; $val = $1;
+    $String = $'; reset;
+  }
+  ($attrib, $val);
+}
+
+sub Link
+{
+  local($file,$name) = @_;
+  "<A HREF=\"$file\">$name</a>";
+}
+

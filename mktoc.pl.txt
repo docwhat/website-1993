@@ -1,0 +1,162 @@
+#!/usr/local/bin/perl
+# mktoc.pl -- A program to generate WebPage Table of
+#             Contents for all the .html and graphic
+#             files
+#
+# This program is part of Christian Holtje's
+# Magic HTML Tools.
+#
+# Copyright 1995 Christian Holtje <docwhat@uiuc.edu>
+# http://www.uiuc.edu/ph/www/docwhat/
+#
+# Disclaimer:  The author doesn't know if this will work or
+# distroy your life.  Just because it works for me, doesn't
+# it will work for you. If something does go wrong, don't blame
+# me!
+#
+
+$StartKey = "<\b*TITLE[^>]*>";
+$EndKey = "<\b*/TITLE[^>]*>";
+
+if ($ENV{'PATH'} =~ /[A-Z]:\\.*/)
+{
+$OS = "DOS";
+$extension = "htm";
+print "Detected DOS\n"
+}
+else {
+$OS = "UNIX";
+$extension = "html";
+print "Detected UNIX\n";
+}
+
+@formats = ("gif","jpg");
+
+print "Generating Tables.";
+sub Dot {
+print STDOUT ".";
+}
+
+foreach $gext ( @formats ){
+  while ($file = <*.$gext>){
+    &Dot;
+    $GFiles{$file} = "";
+  }
+}
+
+&DoHTML;
+open(GTOC, ">gtoc.$extension") || die "Unable to output to toc.$extension: $!";
+select(GTOC);
+print "<HTML>\n<HEAD><TITLE>Table of Graphic Contents</TITLE></HEAD>\n";
+print "<BODY>\n";
+print "<H1 align=center>Table of Graphic Contents</h1>\n<HR><DL>\n";
+
+foreach $file ( sort keys %GFiles ){
+  &Dot;
+  print "<p><DT><IMG SRC=\"bullet.gif\" ALT=\"* \">";
+  &Link($file);
+  print "\n<DD>This file is used ";
+  @Temp = ();
+  while( $GFiles{$file} =~ s/([^:]*):(.*)/$2/ ){
+    push( @Temp, $1 ) unless $1 eq ("gtoc.".$extension);
+  }
+  if( @Temp == 0 ) {
+    print "by no files.";
+  }
+  elsif( @Temp == 1 ) {
+    print "only by ";
+    &Link($Temp[0]);
+    print ".";
+  }
+  else {
+    print "by ";
+    $oldfile = pop(@Temp);
+    while( $newfile = pop(@Temp) ){
+      &Link($oldfile);
+      print ", \n";
+      $oldfile = $newfile;
+    }
+    print "and ";
+    &Link($oldfile);
+    print ".";
+  }
+  print "</p>\n";
+}
+
+print "</dl>\n";
+
+&DoFooter;
+
+print "<!-- AutoFooter: Home -->\n</BODY></HTML>\n";
+
+chmod(0644,"gtoc.html","toc.html") if( $OS eq "UNIX" );
+print STDOUT "\nDone!\n";
+
+
+exit(0);
+#
+# End of Program
+#
+
+
+
+sub PrintToC {
+  while( $file = <*.$extension> ) {
+    &Dot;
+    open(hFILE,$file) || die ("Unable to open $file: $!");
+    while(<hFILE>) {
+      chop;
+      $String .= $_;
+    }
+    close hFILE;
+    foreach $gfile ( keys %GFiles ){
+      if( $String =~ /$gfile/ ) {
+        $GFiles{$gfile} .= "$file".":";
+      }
+    }
+    $String =~ s/.*${StartKey}(.*)${EndKey}.*$/$1/i;
+    print "<p><DT><IMG SRC=\"bullet.gif\" ALT=\"* \">\n";
+    &Link($file);
+    if ($file ne "toc.html"){
+      print "\n<DD>\n$String</p>\n";
+    } else {
+      print "\n<DD>\nThis File</p>\n";
+    }
+  }
+}
+
+sub DoHTML {
+
+  open(TOC, ">toc.$extension") || die "Unable to output to toc.$extension: $!";
+  select(TOC);
+  print "<HTML>\n<HEAD><TITLE>Table of Contents</TITLE></HEAD>\n";
+  print "<BODY>\n<H1 align=center>Table of Contents</h1>\n<HR><DL>\n";
+  &PrintToC;
+  print "</DL>";
+  &DoFooter;
+  print "<!-- AutoFooter: Home -->\n</BODY></HTML>\n";
+  close(TOC);
+}
+
+sub DoFooter {
+  local( $thisday,$thismon, $daymon, $year );
+  print "<HR>This WebPage was automagically generated on ";
+  $thisday = (Sunday,Monday,Tuesday,Wednesday,Thursday,Friday,Saturday)[(localtime)[6]];
+  $thismon = (Jan,Feb,Mar,Apr,May,Jun,Jul,Aug,Sep,Oct,Nov,Dec)[(localtime)[4]];
+  $daymon = (localtime)[3];
+  $year = (localtime)[5];
+  print "$thisday, $thismon. $daymon, 19$year\n";
+  print "using Christian H&ouml;ltje's\n";
+  print "<A HREF=\"mtools.html#HTML\">Magic HTML Tools</a>.\n";
+}
+
+sub Link
+{
+  local($file) = @_;
+  $file =~ tr/[A-Z]/[a-z]/;
+  $file =~ s/(.*\.htm)$/\1l/i;
+  print "<A HREF=\"$file\">$file</a>";
+}
+
+
+
